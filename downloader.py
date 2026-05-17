@@ -8,9 +8,7 @@ def ensure_download_folder():
         os.makedirs(DOWNLOAD_FOLDER)
 
 def download_shorts(url, video_id):
-    """
-    Скачивает YouTube Shorts с использованием cookies.
-    """
+    """Скачивает YouTube Shorts, обходя проверки ботов."""
     ensure_download_folder()
     
     output_path = os.path.join(DOWNLOAD_FOLDER, f"{video_id}.mp4")
@@ -18,12 +16,15 @@ def download_shorts(url, video_id):
     if os.path.exists(output_path):
         return output_path
     
+    # Добавлены настройки для обхода защиты YouTube
     ydl_opts = {
         'format': 'best[height<=1080][ext=mp4]',
         'outtmpl': output_path,
         'quiet': True,
         'no_warnings': True,
         'cookiefile': 'cookies.txt',
+        # Ключевые изменения здесь:
+        'extractor_args': {'youtube': {'player_client': ['android', 'web_safari']}},
     }
     
     try:
@@ -38,9 +39,7 @@ def download_shorts(url, video_id):
         return None
 
 def download_video_by_url(url):
-    """
-    Скачивает любое видео YouTube с использованием cookies.
-    """
+    """Скачивает любое видео YouTube, обходя проверки ботов."""
     ensure_download_folder()
     
     import uuid
@@ -53,6 +52,8 @@ def download_video_by_url(url):
         'quiet': True,
         'no_warnings': True,
         'cookiefile': 'cookies.txt',
+        # И здесь тоже:
+        'extractor_args': {'youtube': {'player_client': ['android', 'web_safari']}},
     }
     
     try:
