@@ -9,14 +9,12 @@ def ensure_download_folder():
 
 def download_shorts(url, video_id):
     """
-    Скачивает YouTube Shorts по ссылке.
-    Возвращает путь к файлу или None.
+    Скачивает YouTube Shorts с использованием cookies.
     """
     ensure_download_folder()
     
     output_path = os.path.join(DOWNLOAD_FOLDER, f"{video_id}.mp4")
     
-    # Если файл уже скачан
     if os.path.exists(output_path):
         return output_path
     
@@ -25,7 +23,7 @@ def download_shorts(url, video_id):
         'outtmpl': output_path,
         'quiet': True,
         'no_warnings': True,
-        'extract_flat': False,
+        'cookiefile': 'cookies.txt',
     }
     
     try:
@@ -41,7 +39,7 @@ def download_shorts(url, video_id):
 
 def download_video_by_url(url):
     """
-    Скачивает любое видео YouTube по ссылке (для пользователей).
+    Скачивает любое видео YouTube с использованием cookies.
     """
     ensure_download_folder()
     
@@ -54,6 +52,7 @@ def download_video_by_url(url):
         'outtmpl': output_path,
         'quiet': True,
         'no_warnings': True,
+        'cookiefile': 'cookies.txt',
     }
     
     try:
