@@ -21,10 +21,17 @@ def post_video_to_channel(channel_id, video_path, caption=""):
         print(f"Ошибка отправки в Telegram: {e}")
         return False
 
-def post_video_to_user(user_id, video_path, caption=""):
+async def post_video_to_user(user_id, video_path, caption=""):
+    """
+    Асинхронная версия для отправки пользователю.
+    Использует send_video напрямую (не через bot.send_video).
+    """
+    from telegram import Bot
+    bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
+    
     try:
         with open(video_path, 'rb') as video:
-            bot.send_video(
+            await bot.send_video(
                 chat_id=user_id,
                 video=video,
                 caption=caption[:1024],
