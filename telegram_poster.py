@@ -4,33 +4,41 @@ from telegram.error import TelegramError
 from dotenv import load_dotenv
 
 load_dotenv()
-bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
 
-def get_chat_info(channel_id):
-    """Получает название канала по ID."""
+def _get_bot():
+    return Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
+
+async def get_chat_info(channel_id):
+    """Получает название канала по ID (асинхронно)."""
     try:
-        chat = bot.get_chat(chat_id=channel_id)
+        bot = _get_bot()
+        chat = await bot.get_chat(chat_id=channel_id)
         return chat.title, chat.username
     except TelegramError as e:
         print(f"Ошибка получения инфо о канале: {e}")
         return None, None
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        return None, None
 
 def post_video_to_channel(channel_id, video_path, caption=""):
     """
-    Отправляет видео в Telegram-канал.
+    Отправляет видео в Telegram-канал (синхронно, для scheduler).
     Возвращает (True, None) если успешно, (False, error_msg) если ошибка.
     """
+    bot = _get_bot()
     try:
         with open(video_path, 'rb') as video:
             msg = bot.send_video(
                 chat_id=channel_id,
                 video=video,
                 caption=caption[:1024],
-                supports_streaming=True
+                supports_streaming=True,
+                read_timeout=60,
+                write_timeout=60,
             )
         if os.path.exists(video_path):
             os.remove(video_path)
-        # Проверяем, что видео действительно отправлено
         if msg and msg.video:
             return True, None
         return False, "Видео не отобразилось в сообщении"
@@ -46,17 +54,17 @@ def post_video_to_channel(channel_id, video_path, caption=""):
         return False, str(e)
 
 async def post_video_to_user(user_id, video_path, caption=""):
-    """
-    Асинхронная версия для отправки пользователю.
-    """
-    _bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
+    """Асинхронная версия для отправки пользователю."""
+    bot = _get_bot()
     try:
         with open(video_path, 'rb') as video:
-            await _bot.send_video(
+            await bot.send_video(
                 chat_id=user_id,
                 video=video,
                 caption=caption[:1024],
-                supports_streaming=True
+                supports_streaming=True,
+                read_timeout=60,
+                write_timeout=60,
             )
         if os.path.exists(video_path):
             os.remove(video_path)
