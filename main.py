@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from db import (
     init_db, set_channel, get_channel,
@@ -22,13 +22,32 @@ load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_USER_ID'))
 
-# ─── Клавиатуры (слева внизу) ───
+# ─── Меню команд (слева от строки ввода) ───
+async def set_bot_commands(app: Application):
+    commands = [
+        BotCommand("start", "🏠 Главное меню"),
+        BotCommand("status", "📊 Текущие настройки"),
+        BotCommand("add_keyword", "🔑 Добавить ключевое слово"),
+        BotCommand("keywords", "📋 Список ключевых слов"),
+        BotCommand("add_region", "🌍 Добавить регион"),
+        BotCommand("regions", "🗺 Список регионов"),
+        BotCommand("add_category", "📂 Добавить категорию"),
+        BotCommand("categories", "📁 Список категорий"),
+        BotCommand("set_channel", "📢 Указать канал"),
+        BotCommand("set_parse", "⏰ Интервал парсинга"),
+        BotCommand("set_post", "⏱ Интервал постинга"),
+        BotCommand("catalog", "📚 Справочник категорий и регионов"),
+        BotCommand("admin", "🔐 Админ-панель"),
+    ]
+    await app.bot.set_my_commands(commands)
+
+# ─── Клавиатуры ───
 def main_keyboard():
     keyboard = [
         [KeyboardButton("🔗 Скачать по ссылке")],
         [KeyboardButton("📩 Связь с админом")]
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def admin_keyboard():
     keyboard = [
@@ -37,14 +56,14 @@ def admin_keyboard():
         [KeyboardButton("➕ Выдать подписку"), KeyboardButton("➖ Убрать подписку")],
         [KeyboardButton("🔍 Запустить парсинг")]
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def premium_keyboard():
     keyboard = [
         [KeyboardButton("🔗 Скачать по ссылке"), KeyboardButton("🔍 Поиск Shorts")],
         [KeyboardButton("📩 Связь с админом")]
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def is_admin(user_id):
     return user_id == ADMIN_ID
@@ -66,10 +85,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Искать популярные Shorts по жанрам\n"
         "• Автопостинг в Telegram-канал\n\n"
         "🔗 Отправь ссылку на YouTube Shorts — и я сразу пришлю видео!\n\n"
-        "💎 С премиум-подпиской доступен поиск по ключевым словам."
+        "💎 С премиум-подпиской доступен поиск по ключевым словам.\n\n"
+        "📋 Используй кнопку **Меню** слева от строки ввода для быстрого доступа к командам."
     )
     if is_admin(user_id):
-        welcome += "\n\n🔐 *Режим администратора*\n/admin — список команд"
+        welcome += "\n\n🔐 *Режим администратора*"
     elif has_subscription(user_id):
         welcome += "\n\n⭐ *Премиум-доступ активен*"
     await update.message.reply_text(welcome, parse_mode='Markdown', reply_markup=get_kb(user_id))
@@ -97,7 +117,7 @@ async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*/subscribers* — подписчики\n"
         "*/catalog* — справочник категорий и регионов"
     )
-    await update.message.reply_text(text, parse_mode='Markdown', reply_markup=get_kb(update.effective_user.id))
+    await update.message.reply_text(text, parse_mode='Markdown')
 
 # ─── /catalog ───
 async def catalog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -109,7 +129,7 @@ async def catalog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"  `{code}` — {name}\n"
     await update.message.reply_text(text, parse_mode='Markdown')
 
-# ─── Команды-запросы (устанавливают флаг) ───
+# ─── Команды-запросы ───
 async def set_channel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     await update.message.reply_text("📢 Отправь username канала:\n`@мой_канал`", parse_mode='Markdown')
@@ -210,6 +230,39 @@ async def subscribers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "Подписчиков нет."
     await update.message.reply_text(text, parse_mode='Markdown')
 
+# ─── Кнопка «Запустить парсинг» с выводом результата ───
+async def run_parser_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not is_admin(user_id):
+        return False
+    kb = get_kb(user_id)
+    await update.message.reply_text("🔄 Запускаю парсинг...", reply_markup=kb)
+
+    # Сохраняем состояние очереди до парсинга
+    from db import get_queue_size as qs
+    before = qs()
+
+    run_parser()
+
+    after = qs()
+    added = after - before
+
+    if added > 0:
+        await update.message.reply_text(
+            f"✅ Парсинг завершён!\n\n"
+            f"📦 Добавлено в очередь: **{added}** Shorts\n"
+            f"📤 Они будут опубликованы по расписанию.",
+            parse_mode='Markdown',
+            reply_markup=kb
+        )
+    else:
+        await update.message.reply_text(
+            "⚠️ Парсинг завершён, но новые Shorts не найдены.\n"
+            "Проверь регионы, категории и ключевые слова через /status.",
+            reply_markup=kb
+        )
+    return True
+
 # ─── Обработчик кнопок ───
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -237,10 +290,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['awaiting'] = 'remove_sub'
         return True
     if text == "🔍 Запустить парсинг" and is_admin(user_id):
-        await update.message.reply_text("🔄 Запускаю парсинг...", reply_markup=kb)
-        run_parser()
-        await update.message.reply_text("✅ Парсинг завершён!", reply_markup=kb)
-        return True
+        return await run_parser_button(update, context)
     if text == "🔍 Поиск Shorts" and (is_admin(user_id) or has_subscription(user_id)):
         await update.message.reply_text("🔑 Отправь ключевое слово для поиска Shorts:", reply_markup=kb)
         context.user_data['awaiting'] = 'search'
@@ -381,6 +431,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     init_db()
     app = Application.builder().token(TOKEN).build()
+
+    # Устанавливаем меню команд
+    app.job_queue.run_once(lambda _: set_bot_commands(app), when=0)
 
     # Команды
     app.add_handler(CommandHandler('start', start))
