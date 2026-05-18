@@ -1,4 +1,5 @@
 import os
+import asyncio
 from telegram import Bot
 from telegram.error import TelegramError
 from dotenv import load_dotenv
@@ -19,30 +20,30 @@ async def get_chat_info(channel_id):
         return None, None
 
 def post_video_to_channel(channel_id, video_path, caption=""):
-    """Синхронно отправляет видео в канал (для scheduler)."""
+    """Синхронно отправляет видео в канал (для scheduler и /postnow)."""
     bot = _get_bot()
     try:
         with open(video_path, 'rb') as video:
-            msg = bot.send_video(
+            msg = asyncio.run(bot.send_video(
                 chat_id=channel_id,
                 video=video,
                 caption=caption[:1024],
                 supports_streaming=True,
                 read_timeout=60,
                 write_timeout=60,
-            )
+            ))
         if os.path.exists(video_path):
             os.remove(video_path)
         if msg and msg.video:
             return True, None
         return False, "Видео не отобразилось"
     except TelegramError as e:
-        msg = str(e)
-        if "not enough rights" in msg.lower() or "forbidden" in msg.lower():
+        msg_text = str(e)
+        if "not enough rights" in msg_text.lower() or "forbidden" in msg_text.lower():
             return False, "Нет прав на публикацию"
-        elif "chat not found" in msg.lower():
+        elif "chat not found" in msg_text.lower():
             return False, "Канал не найден"
-        return False, msg
+        return False, msg_text
     except Exception as e:
         return False, str(e)
 
