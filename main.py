@@ -15,7 +15,7 @@ from db import (
 )
 from youtube_api import search_by_keyword, CATEGORIES, REGIONS
 from downloader import download_video_by_url, download_shorts
-from telegram_poster import post_video_to_user, post_video_to_channel
+from telegram_poster import post_video_to_user, post_video_to_channel, get_chat_info
 from scheduler import start_scheduler, run_parser
 
 load_dotenv()
@@ -207,11 +207,12 @@ async def postnow_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = f"🎬 {title}\n📺 {channel_name}\n👁 {views:,} | 👍 {likes:,}"
 
     await update.message.reply_text(f"📤 Публикую: {title[:50]}...")
-    if post_video_to_channel(channel, video_path, caption):
+    success, error = post_video_to_channel(channel, video_path, caption)
+    if success:
         mark_queued_posted(queue_id)
         await update.message.reply_text("✅ Опубликовано!")
     else:
-        await update.message.reply_text("❌ Ошибка публикации. Проверь права бота в канале.")
+        await update.message.reply_text(f"❌ Ошибка: {error}")
 
 # ─── Команды-показыватели ───
 async def categories_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -244,6 +245,16 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Нужна премиум-подписка.")
         return
     channel = get_channel()
+    
+    # Получаем название канала
+    channel_display = "не настроен"
+    if channel:
+        title, username = get_chat_info(channel)
+        if title:
+            channel_display = f"{title} (@{username})" if username else title
+        else:
+            channel_display = f"{channel} (проверьте права бота)"
+    
     cats = get_all_categories()
     regs = get_all_regions()
     kws = get_all_keywords()
@@ -252,7 +263,7 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     queue = get_queue_size()
     text = (
         f"📊 Текущие настройки:\n\n"
-        f"📢 Канал: {channel or 'не настроен'}\n"
+        f"📢 Канал: {channel_display}\n"
         f"🔍 Парсинг Shorts: каждые {parse_int} ч\n"
         f"📤 Постинг: каждые {post_int} мин\n"
         f"📋 Категорий: {len(cats)}\n"
