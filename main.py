@@ -1,5 +1,4 @@
 import os
-import asyncio
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -23,7 +22,7 @@ load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_USER_ID'))
 
-# ─── Меню команд ───
+# ─── Меню команд (слева от строки ввода) ───
 async def setup_bot_commands(app: Application):
     commands = [
         BotCommand("start", "🏠 Главное меню"),
@@ -101,10 +100,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── /admin ───
 async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Нет доступа.")
         return
     text = (
-        "🔐 Админ-панель\n\n"
         "/set_channel — целевой канал\n"
         "/add_category — добавить категорию\n"
         "/categories — список категорий\n"
@@ -125,15 +122,15 @@ async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ─── /catalog ───
 async def catalog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "📋 Категории:\n"
+    text = "Категории:\n"
     for cid, cname in CATEGORIES.items():
         text += f"  {cid} — {cname}\n"
-    text += "\n🌍 Регионы:\n"
+    text += "\nРегионы:\n"
     for code, name in REGIONS.items():
         text += f"  {code} — {name}\n"
     await update.message.reply_text(text)
 
-# ─── Команды-запросы ───
+# ─── Команды-запросы (устанавливают флаг) ───
 async def set_channel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     await update.message.reply_text("📢 Отправь username канала (например, @мой_канал):")
@@ -141,7 +138,7 @@ async def set_channel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_category_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
-    await update.message.reply_text("📋 Отправь ID категории (10 — Музыка, 24 — Развлечения и т.д.):\nСправочник: /catalog")
+    await update.message.reply_text("📋 Отправь ID категории:\n10 — Музыка, 24 — Развлечения и т.д.\nСправочник: /catalog")
     context.user_data['awaiting'] = 'category'
 
 async def remove_category_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -151,7 +148,7 @@ async def remove_category_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def add_region_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
-    await update.message.reply_text("🌍 Отправь код региона (US, DE, FR, GB и т.д.):\nСправочник: /catalog")
+    await update.message.reply_text("🌍 Отправь код региона:\nUS, DE, FR, GB и т.д.\nСправочник: /catalog")
     context.user_data['awaiting'] = 'region'
 
 async def remove_region_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -183,7 +180,7 @@ async def set_post_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def categories_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cats = get_all_categories()
     if cats:
-        text = "📋 Выбранные категории:\n" + "\n".join(f"• {cid} — {CATEGORIES.get(cid, cname)}" for cid, cname in cats)
+        text = "Выбранные категории:\n" + "\n".join(f"• {cid} — {CATEGORIES.get(cid, cname)}" for cid, cname in cats)
     else:
         text = "Категории не выбраны."
     await update.message.reply_text(text)
@@ -191,14 +188,17 @@ async def categories_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def regions_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     regs = get_all_regions()
     if regs:
-        text = "🌍 Выбранные регионы:\n" + "\n".join(f"• {code} — {REGIONS.get(code, name)}" for code, name in regs)
+        text = "Выбранные регионы:\n" + "\n".join(f"• {code} — {REGIONS.get(code, name)}" for code, name in regs)
     else:
         text = "Регионы не выбраны."
     await update.message.reply_text(text)
 
 async def keywords_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kws = get_all_keywords()
-    text = "🔑 Ключевые слова:\n" + "\n".join(f"• {kw}" for kw in kws) if kws else "Список пуст."
+    if kws:
+        text = "Ключевые слова:\n" + "\n".join(f"• {kw}" for kw in kws)
+    else:
+        text = "Список пуст."
     await update.message.reply_text(text)
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -214,7 +214,6 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     post_int = get_post_interval()
     queue = get_queue_size()
     text = (
-        f"📊 Текущие настройки:\n\n"
         f"📢 Канал: {channel or 'не настроен'}\n"
         f"🔍 Парсинг: каждые {parse_int} ч\n"
         f"📤 Постинг: каждые {post_int} мин\n"
@@ -229,12 +228,12 @@ async def subscribers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     subs = get_all_subscribers()
     if subs:
-        text = "👥 Подписчики:\n" + "\n".join(f"• {uid} (@{uname})" for uid, uname in subs)
+        text = "Подписчики:\n" + "\n".join(f"• {uid} (@{uname})" for uid, uname in subs)
     else:
         text = "Подписчиков нет."
     await update.message.reply_text(text)
 
-# ─── Кнопка «Запустить парсинг» ───
+# ─── Кнопка «Запустить парсинг» с выводом результата ───
 async def run_parser_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_admin(user_id):
@@ -293,13 +292,14 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return True
     return False
 
-# ─── Обработчик текста ───
+# ─── Обработчик текста (флаги + ссылки) ───
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user_id = update.effective_user.id
     kb = get_kb(user_id)
     awaiting = context.user_data.get('awaiting')
 
+    # Админские флаги
     if is_admin(user_id):
         if awaiting == 'channel':
             ch = text if text.startswith('@') else f"@{text}"
@@ -384,6 +384,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('awaiting', None)
             return
 
+    # Поиск Shorts (премиум + админ)
     if awaiting == 'search' and (is_admin(user_id) or has_subscription(user_id)):
         await update.message.reply_text(f"🔍 Ищу Shorts: {text}...")
         shorts = search_by_keyword(text, region_code="US", max_results=5)
@@ -401,6 +402,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('awaiting', None)
         return
 
+    # Ссылка на YouTube
     if 'youtube.com' in text or 'youtu.be' in text:
         await update.message.reply_text("⏳ Скачиваю видео, подожди...")
         path, title, channel, views, likes = download_video_by_url(text)
@@ -420,12 +422,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_text(update, context)
 
 # ─── MAIN ───
-async def main():
+def main():
     init_db()
     app = Application.builder().token(TOKEN).build()
 
-    # Меню команд
-    await setup_bot_commands(app)
+    # Меню команд через post_init
+    app.post_init = lambda app: setup_bot_commands(app)
 
     # Команды
     app.add_handler(CommandHandler('start', start))
@@ -446,12 +448,14 @@ async def main():
     app.add_handler(CommandHandler('status', status_cmd))
     app.add_handler(CommandHandler('subscribers', subscribers_cmd))
 
+    # Текст
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
+    # Планировщик
     start_scheduler()
 
     print("🤖 YouTube Shorts Бот запущен!")
-    await app.run_polling()
+    app.run_polling()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
