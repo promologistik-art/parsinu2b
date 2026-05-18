@@ -244,23 +244,24 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(user_id) and not has_subscription(user_id):
         await update.message.reply_text("⛔ Нужна премиум-подписка.")
         return
+
     channel = get_channel()
-    
-    # Получаем название канала
     channel_display = "не настроен"
     if channel:
-        title, username = get_chat_info(channel)
-        if title:
+        result = await get_chat_info(channel)
+        if result[0]:
+            title, username = result
             channel_display = f"{title} (@{username})" if username else title
         else:
             channel_display = f"{channel} (проверьте права бота)"
-    
+
     cats = get_all_categories()
     regs = get_all_regions()
     kws = get_all_keywords()
     parse_int = get_parse_interval()
     post_int = get_post_interval()
     queue = get_queue_size()
+
     text = (
         f"📊 Текущие настройки:\n\n"
         f"📢 Канал: {channel_display}\n"
@@ -282,42 +283,30 @@ async def subscribers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "Подписчиков нет."
     await update.message.reply_text(text)
 
-# ─── Кнопка «Запустить парсинг» ───
+# ─── Кнопки ───
 async def run_parser_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not is_admin(user_id):
-        return False
+    if not is_admin(user_id): return False
     kb = get_kb(user_id)
     await update.message.reply_text("🔄 Запускаю парсинг Shorts...", reply_markup=kb)
-
     before = get_queue_size()
     run_parser()
     after = get_queue_size()
     added = after - before
-
     if added > 0:
-        await update.message.reply_text(
-            f"✅ Парсинг завершён!\n\n📦 Добавлено в очередь: {added} Shorts\n📤 Опубликую по расписанию или через /postnow.",
-            reply_markup=kb
-        )
+        await update.message.reply_text(f"✅ Парсинг завершён!\n\n📦 Добавлено в очередь: {added} Shorts\n📤 Опубликую по расписанию или через /postnow.", reply_markup=kb)
     else:
-        await update.message.reply_text(
-            "⚠️ Новые Shorts не найдены.\nПроверь регионы, категории и ключевые слова через /status.",
-            reply_markup=kb
-        )
+        await update.message.reply_text("⚠️ Новые Shorts не найдены.\nПроверь регионы, категории и ключевые слова через /status.", reply_markup=kb)
     return True
 
-# ─── Кнопка «Опубликовать сейчас» ───
 async def postnow_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await postnow_cmd(update, context)
     return True
 
-# ─── Обработчик кнопок ───
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user_id = update.effective_user.id
     kb = get_kb(user_id)
-
     if text == "📩 Связь с админом":
         await update.message.reply_text("📩 Напиши админу: @твой_ник", reply_markup=kb)
         return True
@@ -354,7 +343,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = get_kb(user_id)
     awaiting = context.user_data.get('awaiting')
 
-    # Пересланное сообщение для канала
     if awaiting == 'channel' and update.message.forward_from_chat:
         chat = update.message.forward_from_chat
         if chat.type == 'channel':
@@ -372,7 +360,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text.strip() if update.message.text else ""
 
-    # Админские флаги
     if is_admin(user_id):
         if awaiting == 'category':
             cname = CATEGORIES.get(text, "")
@@ -451,7 +438,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('awaiting', None)
             return
 
-    # Поиск Shorts (премиум + админ)
     if awaiting == 'search' and (is_admin(user_id) or has_subscription(user_id)):
         await update.message.reply_text(f"🔍 Ищу Shorts: {text}...")
         shorts = search_by_keyword(text, region_code="US", max_results=5)
@@ -469,7 +455,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('awaiting', None)
         return
 
-    # Ссылка на YouTube (любое видео)
     if 'youtube.com' in text or 'youtu.be' in text:
         await update.message.reply_text("⏳ Скачиваю видео, подожди...")
         path, title, channel, views, likes = download_video_by_url(text)
@@ -482,19 +467,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Используй кнопки или отправь ссылку на YouTube.", reply_markup=kb)
 
-# ─── Главный обработчик ───
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     button_handled = await handle_buttons(update, context)
     if not button_handled:
         await handle_text(update, context)
 
-# ─── MAIN ───
 def main():
     init_db()
     app = Application.builder().token(TOKEN).build()
-
     app.post_init = lambda app: setup_bot_commands(app)
-
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('admin', admin_cmd))
     app.add_handler(CommandHandler('catalog', catalog_cmd))
@@ -513,11 +494,8 @@ def main():
     app.add_handler(CommandHandler('postnow', postnow_cmd))
     app.add_handler(CommandHandler('status', status_cmd))
     app.add_handler(CommandHandler('subscribers', subscribers_cmd))
-
     app.add_handler(MessageHandler(filters.TEXT | filters.FORWARDED, message_handler))
-
     start_scheduler()
-
     print("🤖 YouTube Бот запущен!")
     app.run_polling()
 

@@ -9,7 +9,7 @@ def _get_bot():
     return Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
 
 async def get_chat_info(channel_id):
-    """Получает название канала по ID (асинхронно)."""
+    """Асинхронно получает название канала."""
     try:
         bot = _get_bot()
         chat = await bot.get_chat(chat_id=channel_id)
@@ -17,15 +17,9 @@ async def get_chat_info(channel_id):
     except TelegramError as e:
         print(f"Ошибка получения инфо о канале: {e}")
         return None, None
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        return None, None
 
 def post_video_to_channel(channel_id, video_path, caption=""):
-    """
-    Отправляет видео в Telegram-канал (синхронно, для scheduler).
-    Возвращает (True, None) если успешно, (False, error_msg) если ошибка.
-    """
+    """Синхронно отправляет видео в канал (для scheduler)."""
     bot = _get_bot()
     try:
         with open(video_path, 'rb') as video:
@@ -41,20 +35,19 @@ def post_video_to_channel(channel_id, video_path, caption=""):
             os.remove(video_path)
         if msg and msg.video:
             return True, None
-        return False, "Видео не отобразилось в сообщении"
+        return False, "Видео не отобразилось"
     except TelegramError as e:
-        error_msg = str(e)
-        if "not enough rights" in error_msg.lower() or "forbidden" in error_msg.lower():
-            return False, "Нет прав на публикацию. Сделайте бота админом канала."
-        elif "chat not found" in error_msg.lower():
-            return False, "Канал не найден. Проверьте ID."
-        else:
-            return False, error_msg
+        msg = str(e)
+        if "not enough rights" in msg.lower() or "forbidden" in msg.lower():
+            return False, "Нет прав на публикацию"
+        elif "chat not found" in msg.lower():
+            return False, "Канал не найден"
+        return False, msg
     except Exception as e:
         return False, str(e)
 
 async def post_video_to_user(user_id, video_path, caption=""):
-    """Асинхронная версия для отправки пользователю."""
+    """Асинхронно отправляет видео пользователю."""
     bot = _get_bot()
     try:
         with open(video_path, 'rb') as video:
@@ -70,5 +63,5 @@ async def post_video_to_user(user_id, video_path, caption=""):
             os.remove(video_path)
         return True
     except Exception as e:
-        print(f"Ошибка отправки пользователю: {e}")
+        print(f"Ошибка отправки: {e}")
         return False
